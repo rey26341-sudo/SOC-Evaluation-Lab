@@ -1,0 +1,27 @@
+SSH access:
+commands used:
+whoami
+uname -n
+uptime
+status: SUCCESS
+
+Repo clone:
+simulated repository created manually
+files: app.py, config.yml
+status: SUCCESS
+
+pipeline view:
+pipeline status file verified
+file: pipeline_simulation/build_status.txt
+status: SUCCESS
+
+log directory access:
+log file verified
+file: logs/app.log
+ststus: SUCCESS
+
+issues faced:
+hostname command not found in cloudshell
+
+resolution:
+used alternative command: uname -n

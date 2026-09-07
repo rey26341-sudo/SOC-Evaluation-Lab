@@ -1,0 +1,40 @@
+version: 1.0
+# config.yml
+# Application configuration for environment-access-validator
+
+app:
+  name: environment-access-validator
+  version: "1.0.0"
+  environment: development   # options: development | staging | production
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  debug: true
+
+logging:
+  level: INFO                # DEBUG | INFO | WARNING | ERROR
+  output: logs/app.log
+  format: "%(asctime)s [%(levelname)s] %(message)s"
+
+validation:
+  checks:
+    - ssh_environment
+    - repo_structure
+    - pipeline_simulation
+    - log_access
+  report_output: access_checklist_report.txt
+  fail_fast: false           # continue remaining checks even if one fails
+
+pipeline:
+  stages:
+    - build
+    - test
+    - artifact
+    - deploy
+  timeout_seconds: 300
+
+paths:
+  logs_dir: logs/
+  pipeline_dir: pipeline_simulation/
+  repo_dir: repo_simulation/

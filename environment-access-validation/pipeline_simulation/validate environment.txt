@@ -1,0 +1,221 @@
+"""
+validate_environment.py
+========================
+Environment Access Validation Script
+Performs automated checks on SSH access, repository structure,
+pipeline simulation, and log directory — then writes a checklist report.
+"""
+
+import os
+import platform
+import subprocess
+import datetime
+import sys
+
+REPORT_PATH = "access_checklist_report.txt"
+RESULTS = []
+
+
+def separator():
+    return "-" * 50
+
+
+def run_command(cmd):
+    """Run a shell command and return (stdout, success)."""
+    try:
+        result = subprocess.run(
+            cmd, shell=True, capture_output=True, text=True, timeout=10
+        )
+        output = result.stdout.strip() or result.stderr.strip()
+        return output, result.returncode == 0
+    except Exception as e:
+        return str(e), False
+
+
+def log_result(section, details, status, commands=None):
+    """Store result for report generation."""
+    RESULTS.append({
+        "section": section,
+        "details": details,
+        "status": status,
+        "commands": commands or []
+    })
+    icon = "✔" if status == "SUCCESS" else "✘"
+    print(f"  [{icon}] {section}: {status}")
+    if details:
+        print(f"      {details}")
+
+
+def check_ssh_environment():
+    """Check 1 – SSH / Shell Environment Access"""
+    print(f"\n{separator()}")
+    print("CHECK 1: SSH / Shell Environment")
+    print(separator())
+
+    commands_used = []
+    details_lines = []
+
+    # whoami
+    user, ok = run_command("whoami")
+    commands_used.append("whoami")
+    details_lines.append(f"  user     : {user}")
+    print(f"  whoami   → {user}")
+
+    # hostname / fallback to uname -n
+    hostname, ok = run_command("hostname")
+    if not ok or not hostname:
+        hostname, ok = run_command("uname -n")
+        commands_used.append("uname -n  (fallback: hostname not available)")
+    else:
+        commands_used.append("hostname")
+    details_lines.append(f"  hostname : {hostname}")
+    print(f"  hostname → {hostname}")
+
+    # uptime
+    uptime, ok = run_command("uptime")
+    if not ok or not uptime:
+        uptime = f"Platform: {platform.system()} {platform.release()}"
+        commands_used.append("platform.system() (fallback: uptime not available)")
+    else:
+        commands_used.append("uptime")
+    details_lines.append(f"  uptime   : {uptime}")
+    print(f"  uptime   → {uptime}")
+
+    log_result(
+        "SSH / Shell Access",
+        "\n".join(details_lines),
+        "SUCCESS",
+        commands_used
+    )
+
+
+def check_repo_structure():
+    """Check 2 – Repository Structure"""
+    print(f"\n{separator()}")
+    print("CHECK 2: Repository Structure")
+    print(separator())
+
+    required_files = [
+        "repo_simulation/app.py",
+        "repo_simulation/config.yml",
+    ]
+
+    missing = []
+    found = []
+    for f in required_files:
+        if os.path.exists(f):
+            found.append(f)
+            print(f"  ✔ Found   : {f}")
+        else:
+            missing.append(f)
+            print(f"  ✘ Missing : {f}")
+
+    status = "SUCCESS" if not missing else "PARTIAL"
+    detail = f"Files verified: {', '.join(found)}"
+    if missing:
+        detail += f" | Missing: {', '.join(missing)}"
+
+    log_result("Repository Structure", detail, status, ["os.path.exists()"])
+
+
+def check_pipeline_simulation():
+    """Check 3 – Pipeline Simulation"""
+    print(f"\n{separator()}")
+    print("CHECK 3: Pipeline Simulation")
+    print(separator())
+
+    path = "pipeline_simulation/build_status.txt"
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            content = f.read().strip()
+        print(f"  ✔ File found : {path}")
+        print(f"  ✔ Content    : {content}")
+        log_result(
+            "Pipeline Simulation",
+            f"file: {path} | status: {content}",
+            "SUCCESS",
+            [f"open('{path}')"]
+        )
+    else:
+        print(f"  ✘ Missing    : {path}")
+        log_result("Pipeline Simulation", f"Missing: {path}", "FAILED")
+
+
+def check_log_access():
+    """Check 4 – Log Directory Access"""
+    print(f"\n{separator()}")
+    print("CHECK 4: Log Directory Access")
+    print(separator())
+
+    log_file = "logs/app.log"
+    if os.path.exists(log_file):
+        with open(log_file, "r") as f:
+            lines = f.readlines()
+        print(f"  ✔ Log file  : {log_file}")
+        print(f"  ✔ Lines     : {len(lines)}")
+        log_result(
+            "Log Directory Access",
+            f"file: {log_file} | lines: {len(lines)}",
+            "SUCCESS",
+            [f"open('{log_file}')"]
+        )
+    else:
+        print(f"  ✘ Missing   : {log_file}")
+        log_result("Log Directory Access", f"Missing: {log_file}", "FAILED")
+
+
+def write_report():
+    """Write the final access checklist report."""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = []
+    lines.append("=" * 50)
+    lines.append("  ENVIRONMENT ACCESS VALIDATION REPORT")
+    lines.append(f"  Generated : {timestamp}")
+    lines.append(f"  System    : {platform.system()} {platform.release()}")
+    lines.append(f"  Python    : {sys.version.split()[0]}")
+    lines.append("=" * 50)
+
+    all_success = True
+    for r in RESULTS:
+        lines.append("")
+        lines.append(f"[{'SUCCESS' if r['status'] == 'SUCCESS' else r['status']}] {r['section']}")
+        lines.append(separator())
+        if r["commands"]:
+            lines.append("commands used:")
+            for cmd in r["commands"]:
+                lines.append(f"  {cmd}")
+        lines.append(r["details"])
+        lines.append(f"status: {r['status']}")
+        if r["status"] != "SUCCESS":
+            all_success = False
+
+    lines.append("")
+    lines.append("=" * 50)
+    lines.append(f"  OVERALL: {'ALL CHECKS PASSED ✔' if all_success else 'SOME CHECKS FAILED ✘'}")
+    lines.append("=" * 50)
+
+    with open(REPORT_PATH, "w") as f:
+        f.write("\n".join(lines))
+
+    print(f"\n{separator()}")
+    print(f"  Report written → {REPORT_PATH}")
+    print(separator())
+
+
+def main():
+    print("\n" + "=" * 50)
+    print("  ENVIRONMENT ACCESS VALIDATION")
+    print(f"  {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("=" * 50)
+
+    check_ssh_environment()
+    check_repo_structure()
+    check_pipeline_simulation()
+    check_log_access()
+    write_report()
+
+    print("\nDone. Review access_checklist_report.txt for full results.\n")
+
+
+if __name__ == "__main__":
+    main()
